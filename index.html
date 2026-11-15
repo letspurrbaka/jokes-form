@@ -117,8 +117,10 @@ function params() {
   const h = new URLSearchParams(location.hash.slice(1));
   let other = [];
   try { const o = h.get("o"); if (o) other = JSON.parse(decodeURIComponent(escape(atob(o.replace(/-/g, "+").replace(/_/g, "/"))))); } catch (e) { other = []; }
+  let url = "";
+  try { const u = h.get("u"); if (u) url = decodeURIComponent(escape(atob(u.replace(/-/g, "+").replace(/_/g, "/")))).replace(/^"|"$/g, ""); } catch (e) { url = ""; }
   const m = h.get("m");
-  return {mode: m === "voice" || m === "history" ? m : "video", queue: new Set((h.get("q") || "").split(",").filter(Boolean)), other};
+  return {mode: m === "voice" || m === "history" ? m : "video", url, ref: (h.get("r") || "").replace(/[^\w-]/g, ""), queue: new Set((h.get("q") || "").split(",").filter(Boolean)), other};
 }
 const P = params();
 // Словарь тегов в странице не хранится: он живёт только на этом телефоне (локальное хранилище).
@@ -243,6 +245,7 @@ if (P.mode === "voice") {
   $("video").classList.add("hidden"); $("history").classList.remove("hidden");
 } else {
   collectTags = tagBlock("videoTags", ["тема", "тон", "зачем"]);
+  if (P.url) { $("url").value = P.url; $("url").dispatchEvent(new Event("change")); }
 }
 
 // ---------- отправка
@@ -262,7 +265,7 @@ function build() {
     out.push({t, c: m.c.trim(), r: m.r || 0});
   }
   $("momErr").textContent = "";
-  return {v: 1, id: newId(), kind: "video", url, tags, newTags, note: $("note").value.trim(), moments: out};
+  return {v: 1, id: newId(), kind: "video", url, ref: url === P.url ? P.ref : "", tags, newTags, note: $("note").value.trim(), moments: out};
 }
 function save() {
   const data = build(); if (!data) return;
