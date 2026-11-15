@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Форма</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root{
+    --bg: var(--tg-theme-bg-color, #fff);
+    --text: var(--tg-theme-text-color, #1d1d1f);
+    --hint: var(--tg-theme-hint-color, #8a8a8e);
+    --accent: var(--tg-theme-button-color, #2f80ed);
+    --accent-text: var(--tg-theme-button-text-color, #fff);
+    --card: var(--tg-theme-secondary-bg-color, #f2f2f5);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:14px 14px 90px}
+  h1{font-size:20px;margin:4px 0 14px}
+  .sec{background:var(--card);border-radius:14px;padding:12px 14px;margin-bottom:12px}
+  .lbl{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--hint);margin-bottom:8px;display:block}
+  input[type=text],input[type=url],textarea{width:100%;font:inherit;color:var(--text);background:var(--bg);border:1px solid color-mix(in srgb,var(--hint) 40%,transparent);border-radius:10px;padding:10px 12px}
+  textarea{resize:vertical;min-height:80px}
+  .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .c{font:inherit;font-size:14px;border:1px solid color-mix(in srgb,var(--hint) 45%,transparent);background:var(--bg);color:var(--text);border-radius:16px;padding:6px 12px;min-height:34px}
+  .c.on{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+  .addrow{display:flex;gap:7px;margin-top:8px}
+  .addrow input{flex:1}
+  .btn{font:inherit;font-size:14px;border:0;background:var(--accent);color:var(--accent-text);border-radius:10px;padding:8px 14px;min-height:40px}
+  .btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+  .mom{display:grid;grid-template-columns:86px minmax(0,1fr) 40px;gap:7px;align-items:center;margin-bottom:8px}
+  .mom .stars{grid-column:1 / span 3;display:flex;gap:6px;margin-top:-2px}
+  .star{font-size:20px;border:0;background:none;color:var(--hint);padding:2px 6px;min-height:34px}
+  .star.on{color:#f5a524}
+  .del{border:0;background:none;color:var(--hint);font-size:20px;min-height:40px}
+  .err{color:#d93025;font-size:14px;margin-top:6px;min-height:1em}
+  .hint{color:var(--hint);font-size:13px;margin-top:6px}
+  .seg{display:flex;gap:6px;flex-wrap:wrap}
+  .hidden{display:none!important}
+  .item{display:grid;grid-template-columns:30px minmax(0,1fr);gap:8px;align-items:start;background:var(--card);border-radius:14px;padding:12px;margin-bottom:10px}
+  .item input[type=checkbox]{width:22px;height:22px;margin-top:2px}
+  .meta{color:var(--hint);font-size:13px}
+  .st{display:inline-block;font-size:12px;border-radius:10px;padding:1px 8px;margin-left:4px}
+  .st.q{background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent)}
+  .st.m{background:color-mix(in srgb,var(--hint) 20%,transparent);color:var(--hint)}
+  .prev{word-break:break-word;margin:4px 0}
+  .tgs{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+  .tgs span{font-size:12px;background:var(--bg);border-radius:10px;padding:1px 8px}
+  .filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  #fallback{position:fixed;left:14px;right:14px;bottom:14px}
+  #fallback .btn{width:100%;min-height:48px;font-size:16px}
+</style>
+</head>
+<body>
+<h1 id="title">Новое видео</h1>
+
+<!-- ============ ВИДЕО ============ -->
+<div id="video">
+  <div class="sec">
+    <label class="lbl" for="url">Ссылка на YouTube</label>
+    <input type="url" id="url" inputmode="url" placeholder="https://youtu.be/…" autocomplete="off">
+    <div class="err" id="urlErr"></div>
+  </div>
+  <div id="videoTags"></div>
+  <div class="sec">
+    <label class="lbl" for="note">Заметка — что зацепило</label>
+    <input type="text" id="note" maxlength="300" placeholder="например: как держит паузу перед панчем">
+  </div>
+  <div class="sec">
+    <span class="lbl">Моменты, которые понравились</span>
+    <div id="moments"></div>
+    <button type="button" class="btn ghost" id="addMoment">+ момент</button>
+    <div class="hint">Время — как в YouTube: 3:42 или 1:02:15. Если в ссылке есть таймкод, он добавится сам.</div>
+    <div class="err" id="momErr"></div>
+  </div>
+</div>
+
+<!-- ============ ЗАПИСЬ ============ -->
+<div id="voice" class="hidden">
+  <div class="sec">
+    <span class="lbl">Что это</span>
+    <div class="seg" id="vtype"></div>
+  </div>
+  <div id="voiceTags"></div>
+  <div class="sec">
+    <label class="lbl" for="vtext">Текст</label>
+    <textarea id="vtext" maxlength="2500" placeholder="Напиши шутку здесь — или оставь пустым и после «Сохранить» пришли боту голосовое: оно получит эти теги."></textarea>
+  </div>
+</div>
+
+<!-- ============ ИСТОРИЯ ============ -->
+<div id="history" class="hidden">
+  <div class="filters" id="hFilter"></div>
+  <div id="hList"></div>
+  <div class="hint">Содержимое хранится только на этом телефоне. «🔒 в очереди» — ждёт Мак, «на Маке» — уже забрано программой.</div>
+  <div class="sec" style="margin-top:14px">
+    <span class="lbl">Словарь тегов на этом телефоне</span>
+    <div id="dictInfo" class="meta"></div>
+    <div class="hint">Чтобы добавить теги с Мака: в программе «Настройки → Телефон → Скопировать словарь для iPhone», потом здесь вставь (долгое нажатие → «Вставить») и нажми «Добавить».</div>
+    <textarea id="dictPaste" rows="3" placeholder="вставь сюда словарь с Мака"></textarea>
+    <button type="button" class="btn ghost" id="dictAdd" style="margin-top:8px">Добавить в словарь</button>
+    <div class="err" id="dictErr"></div>
+  </div>
+</div>
+
+<div class="err" id="sizeErr"></div>
+<div id="fallback" class="hidden"><button type="button" class="btn" id="saveBtn">Сохранить</button></div>
+
+<script>
+"use strict";
+const tg = window.Telegram && window.Telegram.WebApp;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+
+// ---------- параметры из адреса после # (на сервер GitHub не уходят)
+function params() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  let other = [];
+  try { const o = h.get("o"); if (o) other = JSON.parse(decodeURIComponent(escape(atob(o.replace(/-/g, "+").replace(/_/g, "/"))))); } catch (e) { other = []; }
+  const m = h.get("m");
+  return {mode: m === "voice" || m === "history" ? m : "video", queue: new Set((h.get("q") || "").split(",").filter(Boolean)), other};
+}
+const P = params();
+// Словарь тегов в странице не хранится: он живёт только на этом телефоне (локальное хранилище).
+const DICT = {тема: [], тон: [], зачем: []};
+function mergeDict(src) {
+  let added = 0;
+  for (const a of Object.keys(DICT)) for (const t of (src && src[a]) || []) {
+    const v = String(t).trim().toLowerCase().replace(/\s+/g, " ").slice(0, 40);
+    if (v && !DICT[a].includes(v)) { DICT[a].push(v); added++; }
+  }
+  return added;
+}
+const AX_TITLE = {тема: "Тема — про что", тон: "Тон — какое оно", зачем: "Зачем сохранил"};
+
+// ---------- локальная история (только на этом телефоне)
+const DS = tg && tg.DeviceStorage && tg.isVersionAtLeast && tg.isVersionAtLeast("9.0") ? tg.DeviceStorage : null;
+const store = {
+  get: (k) => new Promise((res) => { if (DS) DS.getItem(k, (err, v) => res(err ? null : v)); else res(localStorage.getItem(k)); }),
+  set: (k, v) => new Promise((res) => { if (DS) DS.setItem(k, v, () => res()); else { try { localStorage.setItem(k, v); } catch (e) { /* полно */ } res(); } }),
+};
+async function histLoad() { try { return JSON.parse(await store.get("history") || "[]"); } catch (e) { return []; } }
+async function histSave(list) { await store.set("history", JSON.stringify(list.slice(0, 300))); }
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+async function dictLoad() {
+  let mine = null;
+  try { mine = JSON.parse(await store.get("dict") || "null"); } catch (e) { mine = null; }
+  if (mine) mergeDict(mine);
+}
+async function dictSave() { await store.set("dict", JSON.stringify(DICT)); }
+
+// ---------- теги
+function tagBlock(containerId, axes) {
+  const sel = {}; const extra = {};
+  axes.forEach((a) => { sel[a] = new Set(); extra[a] = []; });
+  const box = $(containerId);
+  function render() {
+    box.innerHTML = axes.map((a) => {
+      const all = [...new Set([...DICT[a], ...extra[a]])];
+      return `<div class="sec"><span class="lbl">${AX_TITLE[a]}</span><div class="chips">` +
+        all.map((t) => `<button type="button" class="c ${sel[a].has(t) ? "on" : ""}" data-a="${a}" data-t="${esc(t)}">${esc(t)}</button>`).join("") +
+        `</div><div class="addrow"><input type="text" data-add="${a}" placeholder="свой тег" maxlength="40"><button type="button" class="btn ghost" data-addbtn="${a}">+</button></div></div>`;
+    }).join("");
+  }
+  function addTag(a) {
+    const inp = box.querySelector(`input[data-add="${a}"]`);
+    const t = (inp.value || "").trim().toLowerCase().replace(/\s+/g, " ");
+    if (!t) return;
+    if (!DICT[a].includes(t) && !extra[a].includes(t)) { extra[a].push(t); DICT[a].push(t); dictSave(); }
+    sel[a].add(t); render();
+  }
+  box.addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.addbtn) { addTag(b.dataset.addbtn); return; }
+    const a = b.dataset.a, t = b.dataset.t; if (!a) return;
+    sel[a].has(t) ? sel[a].delete(t) : sel[a].add(t); render();
+    tg && tg.HapticFeedback && tg.HapticFeedback.selectionChanged();
+  });
+  box.addEventListener("keydown", (e) => { const i = e.target.closest("input[data-add]"); if (i && e.key === "Enter") { e.preventDefault(); addTag(i.dataset.add); } });
+  render();
+  return () => {
+    const out = {}; const fresh = {};
+    axes.forEach((a) => { out[a] = [...sel[a]]; fresh[a] = extra[a].filter((t) => sel[a].has(t)); });
+    return {tags: out, newTags: fresh};
+  };
+}
+
+// ---------- время
+function parseTime(s) {
+  s = (s || "").trim(); if (!s) return null;
+  const m = s.match(/^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})$/) || s.match(/^(\d+)$/);
+  if (!m) return NaN;
+  if (m.length === 2) return +m[1];
+  const h = +(m[1] || 0), mi = +m[2], se = +m[3];
+  if (se >= 60 || (m[1] && mi >= 60)) return NaN;
+  return h * 3600 + mi * 60 + se;
+}
+const fmt = (t) => { const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60;
+  return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(s).padStart(2, "0"); };
+function linkTime(url) {
+  const m = (url || "").match(/[?&#](?:t|start)=(?:(\d+)h)?(?:(\d+)m)?(\d+)s?/);
+  return m ? (+(m[1] || 0)) * 3600 + (+(m[2] || 0)) * 60 + (+m[3]) : null;
+}
+const YT = /(?:https?:\/\/)?(?:www\.|m\.|music\.)?(?:youtube\.com\/(?:watch\?\S*?v=|shorts\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})\S*/;
+
+// ---------- моменты
+let moments = [];
+function renderMoments() {
+  $("moments").innerHTML = moments.map((m, i) => `<div class="mom">
+    <input type="text" inputmode="numeric" placeholder="3:42" value="${esc(m.time)}" data-i="${i}" data-f="time" aria-label="Время">
+    <input type="text" placeholder="что тут смешного" maxlength="200" value="${esc(m.c)}" data-i="${i}" data-f="c" aria-label="Комментарий">
+    <button type="button" class="del" data-del="${i}" aria-label="Удалить момент">✕</button>
+    <div class="stars">${[1, 2, 3].map((n) => `<button type="button" class="star ${m.r >= n ? "on" : ""}" data-i="${i}" data-r="${n}" aria-label="Оценка ${n}">★</button>`).join("")}</div>
+  </div>`).join("");
+}
+$("moments").addEventListener("input", (e) => { const el = e.target; if (el.dataset.f) moments[+el.dataset.i][el.dataset.f] = el.value; });
+$("moments").addEventListener("click", (e) => {
+  const d = e.target.closest("[data-del]"); if (d) { moments.splice(+d.dataset.del, 1); renderMoments(); return; }
+  const s = e.target.closest("[data-r]"); if (s) { const m = moments[+s.dataset.i]; const r = +s.dataset.r; m.r = m.r === r ? 0 : r; renderMoments(); }
+});
+$("addMoment").addEventListener("click", () => { moments.push({time: "", c: "", r: 0}); renderMoments();
+  const ins = $("moments").querySelectorAll('input[data-f="time"]'); if (ins.length) ins[ins.length - 1].focus(); });
+$("url").addEventListener("change", () => {
+  const t = linkTime($("url").value);
+  if (t != null && !moments.some((m) => parseTime(m.time) === t)) { moments.unshift({time: fmt(t), c: "", r: 0}); renderMoments(); }
+});
+
+// ---------- режимы
+let collectTags;
+async function boot() {
+await dictLoad();
+const TYPES = [["joke", "Шутка"], ["speech", "Как я говорю"], ["idea", "Идея"]];
+let vtype = "joke";
+if (P.mode === "voice") {
+  $("title").textContent = "Новая запись";
+  $("video").classList.add("hidden"); $("voice").classList.remove("hidden");
+  const renderType = () => { $("vtype").innerHTML = TYPES.map(([k, v]) => `<button type="button" class="c ${vtype === k ? "on" : ""}" data-k="${k}">${v}</button>`).join(""); };
+  $("vtype").addEventListener("click", (e) => { const b = e.target.closest("[data-k]"); if (b) { vtype = b.dataset.k; renderType(); } });
+  renderType();
+  collectTags = tagBlock("voiceTags", ["тема", "тон"]);
+} else if (P.mode === "history") {
+  $("title").textContent = "История";
+  $("video").classList.add("hidden"); $("history").classList.remove("hidden");
+} else {
+  collectTags = tagBlock("videoTags", ["тема", "тон", "зачем"]);
+}
+
+// ---------- отправка
+function build() {
+  const {tags, newTags} = collectTags();
+  if (P.mode === "voice") {
+    return {v: 1, id: newId(), kind: "voice_meta", type: vtype, tags, newTags, text: $("vtext").value.trim()};
+  }
+  const url = $("url").value.trim();
+  if (!YT.test(url)) { $("urlErr").textContent = "Вставь ссылку на видео YouTube"; $("url").focus(); return null; }
+  $("urlErr").textContent = "";
+  const out = [];
+  for (const m of moments) {
+    if (!m.time.trim() && !m.c.trim()) continue;
+    const t = parseTime(m.time);
+    if (t == null || Number.isNaN(t)) { $("momErr").textContent = `Не понял время «${m.time}». Пиши как 3:42 или 1:02:15`; return null; }
+    out.push({t, c: m.c.trim(), r: m.r || 0});
+  }
+  $("momErr").textContent = "";
+  return {v: 1, id: newId(), kind: "video", url, tags, newTags, note: $("note").value.trim(), moments: out};
+}
+function save() {
+  const data = build(); if (!data) return;
+  const s = JSON.stringify(data);
+  if (new TextEncoder().encode(s).length > 4000) { $("sizeErr").textContent = "Слишком много текста для одной формы — сократи комментарии или раздели на две."; return; }
+  if (!tg || !tg.sendData) { $("sizeErr").textContent = "Форма работает только внутри Telegram, из кнопки бота."; return; }
+  histLoad().then((list) => {
+    list.unshift({...data, when: new Date().toISOString()});
+    return histSave(list);
+  }).then(() => tg.sendData(s));   // форма закроется, данные уйдут боту
+}
+
+// ---------- история: список, фильтр, удаление
+const TYPE_RU = {joke: "Шутка", speech: "Как я говорю", idea: "Идея"};
+const KIND_RU = {audio: "🎤 голосовое", text: "✏️ текст", link: "🎬 ссылка"};
+let hItems = [], hSel = new Set(), hFilter = "all";
+const dt = (iso) => { try { const d = new Date(iso); return d.toLocaleDateString("ru-RU", {day: "2-digit", month: "2-digit"}) + " " + d.toLocaleTimeString("ru-RU", {hour: "2-digit", minute: "2-digit"}); } catch (e) { return ""; } };
+function renderDictInfo() {
+  $("dictInfo").textContent = `Тема: ${DICT.тема.length} · Тон: ${DICT.тон.length} · Зачем: ${DICT.зачем.length}`;
+}
+$("dictAdd").addEventListener("click", async () => {
+  try {
+    const raw = $("dictPaste").value.trim();
+    const obj = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
+    const n = mergeDict(obj.dict || obj);
+    await dictSave(); renderDictInfo(); $("dictPaste").value = "";
+    $("dictErr").textContent = n ? `Добавлено тегов: ${n} ✓` : "Новых тегов нет — всё уже есть.";
+  } catch (e) { $("dictErr").textContent = "Не похоже на словарь с Мака. Скопируй кнопкой в программе ещё раз."; }
+});
+async function historyInit() {
+  renderDictInfo();
+  const local = await histLoad();
+  hItems = local.map((x) => ({...x, src: "form"}));
+  for (const o of P.other) hItems.push({...o, src: "chat"});
+  hItems.sort((a, b) => String(b.when).localeCompare(String(a.when)));
+  renderHistory();
+  if (tg && tg.MainButton) tg.MainButton.onClick(deleteSelected);
+}
+function renderHistory() {
+  const F = [["all", "Все"], ["queue", "🔒 В очереди"], ["video", "🎬 Видео"], ["voice", "🎤 Записи"]];
+  $("hFilter").innerHTML = F.map(([k, v]) => `<button type="button" class="c ${hFilter === k ? "on" : ""}" data-f="${k}">${v}</button>`).join("");
+  const list = hItems.filter((x) => hFilter === "all" ? true : hFilter === "queue" ? P.queue.has(x.id)
+    : hFilter === "video" ? (x.kind === "video" || x.kind === "link") : (x.kind !== "video" && x.kind !== "link"));
+  $("hList").innerHTML = list.map((x) => {
+    const inQ = P.queue.has(x.id);
+    const st = `<span class="st ${inQ ? "q" : "m"}">${inQ ? "🔒 в очереди" : "на Маке"}</span>`;
+    let head, prev = "", tags = [];
+    if (x.kind === "video") {
+      head = "🎬 видео"; prev = esc(x.url) + (x.note ? `<div class="meta">✎ ${esc(x.note)}</div>` : "") +
+        (x.moments && x.moments.length ? `<div class="meta">⏱ ${x.moments.map((m) => fmt(m.t) + (m.r ? " " + "★".repeat(m.r) : "") + (m.c ? " — " + esc(m.c) : "")).join(" · ")}</div>` : "");
+      tags = [...(x.tags.тема || []), ...(x.tags.тон || []), ...(x.tags.зачем || [])];
+    } else if (x.kind === "voice_meta") {
+      head = "🏷 " + (TYPE_RU[x.type] || "запись"); prev = x.text ? esc(x.text.slice(0, 200)) : `<span class="meta">теги для следующего голосового</span>`;
+      tags = [...(x.tags.тема || []), ...(x.tags.тон || [])];
+    } else {
+      head = (KIND_RU[x.kind] || x.kind) + (x.duration ? " " + fmt(x.duration) : "") + (x.type ? " · " + (TYPE_RU[x.type] || "") : "");
+      prev = `<span class="meta">отправлено в чат — содержимое зашифровано</span>`;
+    }
+    return `<label class="item"><input type="checkbox" data-id="${esc(x.id)}" ${hSel.has(x.id) ? "checked" : ""}>
+      <div><b>${head}</b>${st}<div class="meta">${dt(x.when)}</div><div class="prev">${prev}</div>
+      ${tags.length ? `<div class="tgs">${tags.map((t) => `<span>${esc(t)}</span>`).join("")}</div>` : ""}</div></label>`;
+  }).join("") || `<p class="meta">Пока пусто.</p>`;
+  updateDeleteButton();
+}
+function updateDeleteButton() {
+  const n = hSel.size;
+  if (tg && tg.MainButton) { if (n) { tg.MainButton.setText(`Удалить выбранные (${n})`); tg.MainButton.show(); } else tg.MainButton.hide(); }
+  else { $("fallback").classList.toggle("hidden", !n); $("saveBtn").textContent = `Удалить выбранные (${n})`; }
+}
+$("hFilter").addEventListener("click", (e) => { const b = e.target.closest("[data-f]"); if (b) { hFilter = b.dataset.f; renderHistory(); } });
+$("hList").addEventListener("change", (e) => { const c = e.target.closest("input[data-id]"); if (!c) return;
+  c.checked ? hSel.add(c.dataset.id) : hSel.delete(c.dataset.id); updateDeleteButton(); });
+async function deleteSelected() {
+  if (!hSel.size) return;
+  const ids = [...hSel];
+  const go = async () => {
+    const local = await histLoad();
+    await histSave(local.filter((x) => !hSel.has(x.id)));
+    const payload = JSON.stringify({v: 1, kind: "delete", ids});
+    if (tg && tg.sendData) tg.sendData(payload);
+  };
+  if (tg && tg.showConfirm) tg.showConfirm(`Удалить ${ids.length} шт.? Из очереди — сразу, с Мака — при следующем «С телефона».`, (ok) => { if (ok) go(); });
+  else if (confirm("Удалить выбранные?")) go();
+}
+
+if (P.mode === "history") {
+  if (tg) { tg.ready(); tg.expand(); }
+  $("saveBtn").addEventListener("click", deleteSelected);
+  historyInit();
+} else {
+  if (tg && tg.initData !== undefined && tg.MainButton) {
+    tg.ready(); tg.expand();
+    tg.MainButton.setText("Сохранить"); tg.MainButton.show(); tg.MainButton.onClick(save);
+  } else {
+    $("fallback").classList.remove("hidden");
+  }
+  $("saveBtn").addEventListener("click", save);
+  renderMoments();
+}
+}
+boot();
+</script>
+</body>
+</html>
