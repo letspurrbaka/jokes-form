@@ -152,10 +152,10 @@ async function dictLoad() {
 async function dictSave() { await store.set("dict", JSON.stringify(DICT)); }
 
 // ---------- теги
-function tagBlock(containerId, axes) {
+function tagBlock(containerId, axes, initial) {
   const sel = {}; const extra = {};
-  axes.forEach((a) => { sel[a] = new Set(); extra[a] = []; });
-  const box = $(containerId);
+  axes.forEach((a) => { sel[a] = new Set((initial && initial[a]) || []); extra[a] = [...sel[a]].filter((t) => !DICT[a].includes(t)); });
+  const old = $(containerId); const box = old.cloneNode(false); old.replaceWith(box);   // сбросить прежние обработчики
   function render() {
     box.innerHTML = axes.map((a) => {
       const all = [...new Set([...DICT[a], ...extra[a]])];
@@ -229,30 +229,45 @@ $("url").addEventListener("change", () => {
 
 // ---------- режимы
 let collectTags;
+let MODE = P.mode;      // video | voice | history
+let EDIT = null;        // запись из истории, которую сейчас правим
 async function boot() {
 await dictLoad();
 const TYPES = [["joke", "Шутка"], ["speech", "Как я говорю"], ["idea", "Идея"]];
 let vtype = "joke";
-if (P.mode === "voice") {
-  $("title").textContent = "Новая запись";
-  $("video").classList.add("hidden"); $("voice").classList.remove("hidden");
-  const renderType = () => { $("vtype").innerHTML = TYPES.map(([k, v]) => `<button type="button" class="c ${vtype === k ? "on" : ""}" data-k="${k}">${v}</button>`).join(""); };
-  $("vtype").addEventListener("click", (e) => { const b = e.target.closest("[data-k]"); if (b) { vtype = b.dataset.k; renderType(); } });
-  renderType();
-  collectTags = tagBlock("voiceTags", ["тема", "тон"]);
-} else if (P.mode === "history") {
-  $("title").textContent = "История";
-  $("video").classList.add("hidden"); $("history").classList.remove("hidden");
-} else {
-  collectTags = tagBlock("videoTags", ["тема", "тон", "зачем"]);
-  if (P.url) { $("url").value = P.url; $("url").dispatchEvent(new Event("change")); }
+const renderType = () => { $("vtype").innerHTML = TYPES.map(([k, v]) => `<button type="button" class="c ${vtype === k ? "on" : ""}" data-k="${k}">${v}</button>`).join(""); };
+$("vtype").addEventListener("click", (e) => { const b = e.target.closest("[data-k]"); if (b) { vtype = b.dataset.k; renderType(); } });
+function show(which) {
+  ["video", "voice", "history"].forEach((id) => $(id).classList.toggle("hidden", id !== which));
 }
+function openVideo(rec) {
+  MODE = "video"; show("video");
+  $("title").textContent = rec ? "Правка видео" : "Новое видео";
+  $("url").value = rec ? rec.url : (P.url || "");
+  $("note").value = rec ? (rec.note || "") : "";
+  moments = rec ? (rec.moments || []).map((m) => ({time: fmt(m.t), c: m.c || "", r: m.r || 0})) : [];
+  collectTags = tagBlock("videoTags", ["тема", "тон", "зачем"], rec && rec.tags);
+  renderMoments();
+  if (!rec && P.url) $("url").dispatchEvent(new Event("change"));
+}
+function openVoice(rec) {
+  MODE = "voice"; show("voice");
+  $("title").textContent = rec ? "Правка записи" : "Новая запись";
+  vtype = rec ? (rec.type || "joke") : "joke"; renderType();
+  $("vtext").value = rec ? (rec.text || "") : "";
+  collectTags = tagBlock("voiceTags", ["тема", "тон"], rec && rec.tags);
+}
+if (P.mode === "voice") openVoice(null);
+else if (P.mode === "history") { $("title").textContent = "История"; show("history"); }
+else openVideo(null);
 
 // ---------- отправка
 function build() {
   const {tags, newTags} = collectTags();
-  if (P.mode === "voice") {
-    return {v: 1, id: newId(), kind: "voice_meta", type: vtype, tags, newTags, text: $("vtext").value.trim()};
+  const id = EDIT ? EDIT.id : newId();
+  const edit = EDIT ? {edit: true} : {};
+  if (MODE === "voice") {
+    return {v: 1, id, ...edit, kind: "voice_meta", type: vtype, tags, newTags, text: $("vtext").value.trim()};
   }
   const url = $("url").value.trim();
   if (!YT.test(url)) { $("urlErr").textContent = "Вставь ссылку на видео YouTube"; $("url").focus(); return null; }
@@ -265,7 +280,7 @@ function build() {
     out.push({t, c: m.c.trim(), r: m.r || 0});
   }
   $("momErr").textContent = "";
-  return {v: 1, id: newId(), kind: "video", url, ref: url === P.url ? P.ref : "", tags, newTags, note: $("note").value.trim(), moments: out};
+  return {v: 1, id, ...edit, kind: "video", url, ref: !EDIT && url === P.url ? P.ref : "", tags, newTags, note: $("note").value.trim(), moments: out};
 }
 function save() {
   const data = build(); if (!data) return;
@@ -273,7 +288,12 @@ function save() {
   if (new TextEncoder().encode(s).length > 4000) { $("sizeErr").textContent = "Слишком много текста для одной формы — сократи комментарии или раздели на две."; return; }
   if (!tg || !tg.sendData) { $("sizeErr").textContent = "Форма работает только внутри Telegram, из кнопки бота."; return; }
   histLoad().then((list) => {
-    list.unshift({...data, when: new Date().toISOString()});
+    if (EDIT) {
+      const i = list.findIndex((x) => x.id === EDIT.id);
+      const rec = {...data, when: EDIT.when, edited: new Date().toISOString()};
+      delete rec.edit;
+      if (i >= 0) list[i] = rec; else list.unshift(rec);
+    } else list.unshift({...data, when: new Date().toISOString()});
     return histSave(list);
   }).then(() => tg.sendData(s));   // форма закроется, данные уйдут боту
 }
@@ -302,7 +322,6 @@ async function historyInit() {
   for (const o of P.other) hItems.push({...o, src: "chat"});
   hItems.sort((a, b) => String(b.when).localeCompare(String(a.when)));
   renderHistory();
-  if (tg && tg.MainButton) tg.MainButton.onClick(deleteSelected);
 }
 function renderHistory() {
   const F = [["all", "Все"], ["queue", "🔒 В очереди"], ["video", "🎬 Видео"], ["voice", "🎤 Записи"]];
@@ -324,9 +343,10 @@ function renderHistory() {
       head = (KIND_RU[x.kind] || x.kind) + (x.duration ? " " + fmt(x.duration) : "") + (x.type ? " · " + (TYPE_RU[x.type] || "") : "");
       prev = `<span class="meta">отправлено в чат — содержимое зашифровано</span>`;
     }
-    return `<label class="item"><input type="checkbox" data-id="${esc(x.id)}" ${hSel.has(x.id) ? "checked" : ""}>
-      <div><b>${head}</b>${st}<div class="meta">${dt(x.when)}</div><div class="prev">${prev}</div>
-      ${tags.length ? `<div class="tgs">${tags.map((t) => `<span>${esc(t)}</span>`).join("")}</div>` : ""}</div></label>`;
+    const editable = x.src === "form";
+    return `<div class="item"><input type="checkbox" data-id="${esc(x.id)}" ${hSel.has(x.id) ? "checked" : ""} aria-label="Выбрать">
+      <div ${editable ? `data-edit="${esc(x.id)}" role="button" tabindex="0"` : ""}><b>${head}</b>${st}<div class="meta">${dt(x.when)}${x.edited ? " · изменено" : ""}${editable ? " · ✎ нажми, чтобы изменить" : ""}</div><div class="prev">${prev}</div>
+      ${tags.length ? `<div class="tgs">${tags.map((t) => `<span>${esc(t)}</span>`).join("")}</div>` : ""}</div></div>`;
   }).join("") || `<p class="meta">Пока пусто.</p>`;
   updateDeleteButton();
 }
@@ -336,6 +356,22 @@ function updateDeleteButton() {
   else { $("fallback").classList.toggle("hidden", !n); $("saveBtn").textContent = `Удалить выбранные (${n})`; }
 }
 $("hFilter").addEventListener("click", (e) => { const b = e.target.closest("[data-f]"); if (b) { hFilter = b.dataset.f; renderHistory(); } });
+$("hList").addEventListener("click", (e) => {
+  if (e.target.closest("input")) return;
+  const d = e.target.closest("[data-edit]"); if (!d) return;
+  const rec = hItems.find((x) => x.id === d.dataset.edit); if (!rec) return;
+  EDIT = rec;
+  rec.kind === "video" ? openVideo(rec) : openVoice(rec);
+  window.scrollTo(0, 0);
+  if (tg && tg.MainButton) { tg.MainButton.setText("Сохранить изменения"); tg.MainButton.show(); }
+  else { $("fallback").classList.remove("hidden"); $("saveBtn").textContent = "Сохранить изменения"; }
+  if (tg && tg.BackButton) tg.BackButton.show();
+});
+function backToList() {
+  EDIT = null; MODE = "history"; $("title").textContent = "История"; show("history");
+  if (tg && tg.BackButton) tg.BackButton.hide();
+  renderHistory();
+}
 $("hList").addEventListener("change", (e) => { const c = e.target.closest("input[data-id]"); if (!c) return;
   c.checked ? hSel.add(c.dataset.id) : hSel.delete(c.dataset.id); updateDeleteButton(); });
 async function deleteSelected() {
@@ -351,19 +387,17 @@ async function deleteSelected() {
   else if (confirm("Удалить выбранные?")) go();
 }
 
+function mainAction() { if (EDIT || MODE !== "history") save(); else deleteSelected(); }
+const inTg = tg && tg.initData !== undefined && tg.MainButton;
+if (tg) { tg.ready(); tg.expand(); }
+if (inTg) tg.MainButton.onClick(mainAction);
+if (tg && tg.BackButton) tg.BackButton.onClick(backToList);
+$("saveBtn").addEventListener("click", mainAction);
 if (P.mode === "history") {
-  if (tg) { tg.ready(); tg.expand(); }
-  $("saveBtn").addEventListener("click", deleteSelected);
   historyInit();
 } else {
-  if (tg && tg.initData !== undefined && tg.MainButton) {
-    tg.ready(); tg.expand();
-    tg.MainButton.setText("Сохранить"); tg.MainButton.show(); tg.MainButton.onClick(save);
-  } else {
-    $("fallback").classList.remove("hidden");
-  }
-  $("saveBtn").addEventListener("click", save);
-  renderMoments();
+  if (inTg) { tg.MainButton.setText("Сохранить"); tg.MainButton.show(); }
+  else $("fallback").classList.remove("hidden");
 }
 }
 boot();
