@@ -94,6 +94,13 @@
   <div id="hList"></div>
   <div class="hint">Содержимое хранится только на этом телефоне. «🔒 в очереди» — ждёт Мак, «на Маке» — уже забрано программой.</div>
   <div class="sec" style="margin-top:14px">
+    <span class="lbl">Перенести на Мак без сервера</span>
+    <div class="hint">Если сервер или бот не работает. Отметь записи галочками (или ничего — тогда возьмутся все видео и тексты из форм) и нажми кнопку. Текст скопируется — вставь его в «Избранное» Telegram, на Маке скопируй оттуда и вставь в программе: Настройки → «Телефон» → «Перенести без сервера». Голосовые и то, что отправлено прямо в чат, так не переносятся — они только на сервере.</div>
+    <button type="button" class="btn ghost" id="expBtn" style="margin-top:8px">📤 Скопировать для Мака</button>
+    <textarea id="expText" class="hidden" rows="4" readonly style="margin-top:8px"></textarea>
+    <div class="err" id="expErr"></div>
+  </div>
+  <div class="sec" style="margin-top:14px">
     <span class="lbl">Словарь тегов на этом телефоне</span>
     <div id="dictInfo" class="meta"></div>
     <div class="hint">Чтобы добавить теги с Мака: в программе «Настройки → Телефон → Скопировать словарь для iPhone», потом здесь вставь (долгое нажатие → «Вставить») и нажми «Добавить».</div>
@@ -386,6 +393,25 @@ async function deleteSelected() {
   if (tg && tg.showConfirm) tg.showConfirm(`Удалить ${ids.length} шт.? Из очереди — сразу, с Мака — при следующем «С телефона».`, (ok) => { if (ok) go(); });
   else if (confirm("Удалить выбранные?")) go();
 }
+
+// ---------- перенос на Мак без сервера: по записи в строке, чтобы Telegram мог резать длинный текст на части
+$("expBtn").addEventListener("click", async () => {
+  const local = await histLoad();
+  const ok = (x) => x.kind === "video" || (x.kind === "voice_meta" && (x.text || "").trim());
+  let list = local.filter((x) => ok(x) && hSel.has(x.id));
+  if (!list.length) list = local.filter(ok);
+  if (!list.length) { $("expErr").textContent = "Нечего переносить: здесь нет видео и текстов из форм."; return; }
+  const body = list.map((x) => {
+    const o = {...x}; delete o.newTags; delete o.edit; delete o.ref;
+    return "JOKES1 " + JSON.stringify(o);
+  }).join("\n");
+  const txt = `Перенос на Мак: ${list.length} шт.\n${body}\nJOKES-END`;
+  $("expText").value = txt; $("expText").classList.remove("hidden");
+  let copied = false;
+  try { await navigator.clipboard.writeText(txt); copied = true; } catch (e) { copied = false; }
+  if (!copied) { $("expText").focus(); $("expText").select(); try { copied = document.execCommand("copy"); } catch (e) { copied = false; } }
+  $("expErr").textContent = copied ? `Скопировано: ${list.length} шт. Вставь в «Избранное» Telegram.` : "Не удалось скопировать само — выдели текст ниже (долгое нажатие → «Выбрать всё» → «Скопировать»).";
+});
 
 function mainAction() { if (EDIT || MODE !== "history") save(); else deleteSelected(); }
 const inTg = tg && tg.initData !== undefined && tg.MainButton;
